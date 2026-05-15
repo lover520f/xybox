@@ -1,4 +1,3 @@
-import '../data/database/app_database.dart';
 class ConfigManager {
   static final ConfigManager _instance = ConfigManager._internal();
   factory ConfigManager() => _instance;
