@@ -3,9 +3,6 @@ import 'features/vod/pages/vod_home_page.dart';
 import 'features/live/pages/live_page.dart';
 import 'features/plugins/pages/plugins_page.dart';
 import 'features/settings/pages/settings_page.dart';
-import 'features/search/pages/search_page.dart';
-import 'features/history/pages/history_page.dart';
-import 'features/logs/pages/logs_page.dart';
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -18,10 +15,10 @@ class _AppState extends State<App> {
   int _currentIndex = 0;
   
   final List<Widget> _pages = [
-    const VodHomePage(),
-    const LivePage(),
-    const PluginsPage(),
-    const SettingsPage(),
+    const VodHomePage(),  // 影视
+    const LivePage(),     // 直播
+    const PluginsPage(),  // 插件
+    const SettingsPage(), // 设置
   ];
 
   @override
@@ -53,7 +50,7 @@ class _AppState extends State<App> {
   }
 }
 
-// 简单插件页面占位
+// 插件页面占位
 class PluginsPage extends StatelessWidget {
   const PluginsPage({super.key});
 
@@ -68,6 +65,8 @@ class PluginsPage extends StatelessWidget {
             Icon(Icons.extension, size: 64, color: Colors.grey),
             SizedBox(height: 16),
             Text('插件管理', style: TextStyle(color: Colors.grey, fontSize: 16)),
+            SizedBox(height: 8),
+            Text('功能开发中...', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
           ],
         ),
       ),
