@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../danmaku/service/danmaku_service.dart';
 import '../../danmaku/widget/danmaku_overlay.dart';
+import '../../dlna/pages/dlna_cast_page.dart';
 
 class PlayerPage extends StatefulWidget {
   final String url;
@@ -53,7 +54,6 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _checkAndInitializePlayer() async {
-    // 检查 URL 是否有效
     if (widget.url.isEmpty || !widget.url.startsWith('http')) {
       setState(() {
         _error = '无效的视频地址';
@@ -138,6 +138,18 @@ class _PlayerPageState extends State<PlayerPage> {
     FocusScope.of(context).unfocus();
     
     setState(() {});
+  }
+
+  void _showDlnaCast() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DlnaCastPage(
+          videoUrl: widget.url,
+          title: '${widget.title} 第${widget.episode}集',
+        ),
+      ),
+    );
   }
 
   @override
@@ -264,6 +276,11 @@ class _PlayerPageState extends State<PlayerPage> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.cast, color: Colors.white),
+              onPressed: _showDlnaCast,
+              tooltip: '投屏',
             ),
             IconButton(
               icon: Icon(_showDanmaku ? Icons.subtitles : Icons.subtitles_off, color: Colors.white),
