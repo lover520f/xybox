@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../vod/pages/vod_page.dart';
+import '../../live/pages/live_page.dart';
+import '../../history/pages/history_page.dart';
+import '../../settings/pages/settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,19 +14,27 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  final List<Map<String, dynamic>> _pages = [
-    {'title': '首页', 'icon': Icons.home, 'widget': const HomeContent(title: '首页')},
-    {'title': '影视', 'icon': Icons.movie, 'widget': const HomeContent(title: '影视')},
-    {'title': '直播', 'icon': Icons.live_tv, 'widget': const HomeContent(title: '直播')},
-    {'title': '历史', 'icon': Icons.history, 'widget': const HomeContent(title: '历史')},
-    {'title': '设置', 'icon': Icons.settings, 'widget': const HomeContent(title: '设置')},
+  final List<Widget> _pages = [
+    const HomeContent(title: '首页'),
+    const VodPage(),
+    const LivePage(),
+    const HistoryPage(),
+    const SettingsPage(),
+  ];
+
+  final List<Map<String, dynamic>> _navItems = [
+    {'title': '首页', 'icon': Icons.home},
+    {'title': '影视', 'icon': Icons.movie},
+    {'title': '直播', 'icon': Icons.live_tv},
+    {'title': '历史', 'icon': Icons.history},
+    {'title': '设置', 'icon': Icons.settings},
   ];
 
   void _onItemTapped(int index) {
     setState(() {
       _currentIndex = index;
     });
-    debugPrint('点击了第 $index 个标签：${_pages[index]['title']}');
+    debugPrint('切换到了：${_navItems[index]['title']}');
   }
 
   @override
@@ -31,7 +43,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: const Color(0xFF1a1a1a),
       appBar: AppBar(
         title: Text(
-          _pages[_currentIndex]['title'],
+          _navItems[_currentIndex]['title'] as String,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -44,7 +56,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
-        child: _pages[_currentIndex]['widget'] as Widget,
+        child: _pages[_currentIndex],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -58,9 +70,9 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         child: BottomNavigationBar(
-          items: _pages.map((page) => BottomNavigationBarItem(
-            icon: Icon(page['icon'] as IconData, size: 24),
-            label: page['title'] as String,
+          items: _navItems.map((item) => BottomNavigationBarItem(
+            icon: Icon(item['icon'] as IconData, size: 24),
+            label: item['title'] as String,
           )).toList(),
           currentIndex: _currentIndex,
           selectedItemColor: Colors.blueAccent,
@@ -93,7 +105,7 @@ class HomeContent extends StatelessWidget {
             const SizedBox(height: 24),
             Text(
               title,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
