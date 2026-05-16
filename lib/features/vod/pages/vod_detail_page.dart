@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../player/pages/player_page.dart';
+import '../../favorite/service/favorite_service.dart';
 
 class VodDetailPage extends StatefulWidget {
   final Map<String, dynamic> vod;
@@ -16,6 +17,18 @@ class _VodDetailPageState extends State<VodDetailPage> {
   bool _isFavorite = false;
 
   @override
+  void initState() {
+    super.initState();
+    _checkFavorite();
+  }
+
+  Future<void> _checkFavorite() async {
+    final id = widget.vod['id']?.toString() ?? '';
+    final isFav = FavoriteService().isFavorite(id);
+    if (mounted) setState(() => _isFavorite = isFav);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1a1a1a),
@@ -25,18 +38,9 @@ class _VodDetailPageState extends State<VodDetailPage> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
-            color: _isFavorite ? Colors.red : Colors.white,
-            onPressed: () {
-              setState(() => _isFavorite = !_isFavorite);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_isFavorite ? '已加入收藏' : '已取消收藏'),
-                  backgroundColor: Colors.blueAccent,
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
+            icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: _isFavorite ? Colors.red : Colors.white),
+            onPressed: _toggleFavorite,
           ),
         ],
       ),
@@ -68,7 +72,13 @@ class _VodDetailPageState extends State<VodDetailPage> {
               color: const Color(0xFF1a1a1a),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.movie, size: 48, color: Colors.grey),
+            child: widget.vod['pic'] != null && widget.vod['pic'].toString().isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(widget.vod['pic'], width: 120, height: 170, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.movie, size: 48, color: Colors.grey)),
+                  )
+                : const Icon(Icons.movie, size: 48, color: Colors.grey),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -77,11 +87,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
               children: [
                 Text(
                   widget.vod['name'] as String,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
                 _buildInfoRow('年份', widget.vod['year'] ?? '未知'),
@@ -92,10 +98,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
                   onPressed: _playVideo,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('立即播放'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
                 ),
               ],
             ),
@@ -127,14 +130,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
             children: [
               const Icon(Icons.description, color: Colors.blueAccent),
               const SizedBox(width: 8),
-              const Text(
-                '简介',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('简介', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12),
@@ -157,14 +153,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
             children: [
               const Icon(Icons.list, color: Colors.blueAccent),
               const SizedBox(width: 8),
-              const Text(
-                '选集',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('选集', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const Spacer(),
               Text('共${_episodes.length}集', style: TextStyle(color: Colors.grey[500])),
             ],
@@ -205,16 +194,30 @@ class _VodDetailPageState extends State<VodDetailPage> {
   }
 
   void _playVideo() {
-    final url = widget.vod['url'] as String? ?? 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    final url = widget.vod['url'] as String? ?? '';
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PlayerPage(
-          url: url,
+          url: url.isNotEmpty ? url : 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
           title: widget.vod['name'] as String,
           episode: _selectedEpisode + 1,
         ),
       ),
     );
+  }
+
+  Future<void> _toggleFavorite() async {
+    final result = await FavoriteService().toggle(widget.vod);
+    if (mounted) {
+      setState(() => _isFavorite = !_isFavorite);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isFavorite ? '已加入收藏' : '已取消收藏'),
+          backgroundColor: Colors.blueAccent,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
   }
 }
