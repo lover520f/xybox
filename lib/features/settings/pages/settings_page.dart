@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'config_source_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -12,11 +14,13 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _configUrlController = TextEditingController();
   String? _savedConfigUrl;
   bool _isLoading = false;
+  int _sourceCount = 0;
 
   @override
   void initState() {
     super.initState();
     _loadConfigUrl();
+    _loadSourceCount();
   }
 
   Future<void> _loadConfigUrl() async {
@@ -25,6 +29,15 @@ class _SettingsPageState extends State<SettingsPage> {
       _savedConfigUrl = prefs.getString('vod_config_url');
       _configUrlController.text = _savedConfigUrl ?? '';
     });
+  }
+
+  Future<void> _loadSourceCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final sourcesJson = prefs.getString('config_sources');
+    if (sourcesJson != null) {
+      final List<dynamic> decoded = json.decode(sourcesJson);
+      setState(() => _sourceCount = decoded.length);
+    }
   }
 
   Future<void> _saveConfigUrl() async {
@@ -47,7 +60,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackbar('保存失败：${e.toString()}');
+        _showSnackbar('保存失败');
       }
     }
   }
@@ -69,15 +82,10 @@ class _SettingsPageState extends State<SettingsPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // 配置管理卡片
           _buildConfigCard(),
           const SizedBox(height: 16),
-          
-          // 数据管理卡片
           _buildDataCard(),
           const SizedBox(height: 16),
-          
-          // 关于卡片
           _buildAboutCard(),
         ],
       ),
@@ -107,6 +115,22 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
             const SizedBox(height: 20),
+            
+            ListTile(
+              leading: Icon(Icons.cloud, color: Colors.blueAccent),
+              title: const Text('配置源管理', style: TextStyle(color: Colors.white)),
+              subtitle: Text('$_sourceCount 个配置源', style: TextStyle(color: Colors.grey[500])),
+              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ConfigSourcePage()),
+                ).then((_) => _loadSourceCount());
+              },
+            ),
+            
+            const Divider(color: Colors.grey, height: 24),
+            
             TextField(
               controller: _configUrlController,
               style: const TextStyle(color: Colors.white),
@@ -215,11 +239,16 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('版本', '1.0.3'),
-            _buildInfoRow('构建日期', '2024-05-16'),
+            _buildInfoRow('版本', '1.0.5'),
+            _buildInfoRow('构建日期', '2026-05-16'),
             const Divider(color: Colors.grey, height: 24),
             const Text(
               'XYBox 是 FongMi/TV 的 Flutter 复刻版本',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '支持配置源：饭太硬、肥猫、巧技等',
               style: TextStyle(color: Colors.grey, fontSize: 14),
             ),
           ],
