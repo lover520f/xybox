@@ -1,7 +1,7 @@
 name: xybox
 description: "XYBox - 1:1 复刻 FongMi/TV 项目"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.14+14
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
