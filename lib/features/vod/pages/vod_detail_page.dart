@@ -44,13 +44,10 @@ class _VodDetailPageState extends State<VodDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 封面和信息
             _buildHeader(),
             const SizedBox(height: 20),
-            // 简介
             _buildDescription(),
             const SizedBox(height: 20),
-            // 选集
             _buildEpisodes(),
           ],
         ),
@@ -64,7 +61,6 @@ class _VodDetailPageState extends State<VodDetailPage> {
       color: const Color(0xFF2d2d2d),
       child: Row(
         children: [
-          // 封面
           Container(
             width: 120,
             height: 170,
@@ -72,10 +68,9 @@ class _VodDetailPageState extends State<VodDetailPage> {
               color: const Color(0xFF1a1a1a),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.movie, size: 48, color: Colors.grey[600]),
+            child: const Icon(Icons.movie, size: 48, color: Colors.grey),
           ),
           const SizedBox(width: 16),
-          // 信息
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,14 +110,8 @@ class _VodDetailPageState extends State<VodDetailPage> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Text(
-            '$label: ',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
-          ),
-          Text(
-            value,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
+          Text('$label: ', style: TextStyle(color: Colors.grey[500], fontSize: 14)),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
       ),
     );
@@ -136,7 +125,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
         children: [
           Row(
             children: [
-              Icon(Icons.description, color: Colors.blueAccent),
+              const Icon(Icons.description, color: Colors.blueAccent),
               const SizedBox(width: 8),
               const Text(
                 '简介',
@@ -150,7 +139,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            '这是一个${widget.vod['name']}的简介。暂无详细内容，等待后续接入真实数据源。',
+            '这是${widget.vod['name']}的简介。等待接入真实数据源。',
             style: TextStyle(color: Colors.grey[400], height: 1.6),
           ),
         ],
@@ -166,7 +155,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
         children: [
           Row(
             children: [
-              Icon(Icons.list, color: Colors.blueAccent),
+              const Icon(Icons.list, color: Colors.blueAccent),
               const SizedBox(width: 8),
               const Text(
                 '选集',
@@ -177,10 +166,7 @@ class _VodDetailPageState extends State<VodDetailPage> {
                 ),
               ),
               const Spacer(),
-              Text(
-                '共${_episodes.length}集',
-                style: TextStyle(color: Colors.grey[500]),
-              ),
+              Text('共${_episodes.length}集', style: TextStyle(color: Colors.grey[500])),
             ],
           ),
           const SizedBox(height: 12),
@@ -201,9 +187,6 @@ class _VodDetailPageState extends State<VodDetailPage> {
                   decoration: BoxDecoration(
                     color: isSelected ? Colors.blueAccent : const Color(0xFF2d2d2d),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: isSelected ? Colors.blueAccent : Colors.transparent,
-                    ),
                   ),
                   child: Text(
                     episode,
@@ -222,11 +205,13 @@ class _VodDetailPageState extends State<VodDetailPage> {
   }
 
   void _playVideo() {
+    final url = widget.vod['url'] as String? ?? 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => PlayerPage(
-          vod: widget.vod,
+          url: url,
+          title: widget.vod['name'] as String,
           episode: _selectedEpisode + 1,
         ),
       ),

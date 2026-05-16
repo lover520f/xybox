@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 class LivePage extends StatefulWidget {
   const LivePage({super.key});
@@ -8,15 +10,14 @@ class LivePage extends StatefulWidget {
 }
 
 class _LivePageState extends State<LivePage> {
+  // 模拟频道数据
   final List<Map<String, dynamic>> _channels = [
-    {'id': '1', 'name': 'CCTV-1', 'group': '央视', 'logo': Icons.tv},
-    {'id': '2', 'name': 'CCTV-2', 'group': '央视', 'logo': Icons.tv},
-    {'id': '3', 'name': 'CCTV-5', 'group': '央视', 'logo': Icons.sports_soccer},
-    {'id': '4', 'name': '湖南卫视', 'group': '卫视', 'logo': Icons.live_tv},
-    {'id': '5', 'name': '浙江卫视', 'group': '卫视', 'logo': Icons.live_tv},
-    {'id': '6', 'name': '江苏卫视', 'group': '卫视', 'logo': Icons.live_tv},
-    {'id': '7', 'name': '东方卫视', 'group': '卫视', 'logo': Icons.live_tv},
-    {'id': '8', 'name': '北京卫视', 'group': '卫视', 'logo': Icons.live_tv},
+    {'id': '1', 'name': 'CCTV-1', 'group': '央视', 'url': 'http://live-play.cctv.com/live/program/live/cctv1/1000000/live/live_src.m3u8'},
+    {'id': '2', 'name': 'CCTV-2', 'group': '央视', 'url': ''},
+    {'id': '3', 'name': 'CCTV-5', 'group': '央视', 'url': ''},
+    {'id': '4', 'name': '湖南卫视', 'group': '卫视', 'url': ''},
+    {'id': '5', 'name': '浙江卫视', 'group': '卫视', 'url': ''},
+    {'id': '6', 'name': '江苏卫视', 'group': '卫视', 'url': ''},
   ];
 
   String _selectedGroup = '全部';
@@ -33,12 +34,8 @@ class _LivePageState extends State<LivePage> {
       color: const Color(0xFF1a1a1a),
       child: Column(
         children: [
-          // 分组选择
           _buildGroupSelector(),
-          // 频道列表
-          Expanded(
-            child: _buildChannelList(),
-          ),
+          Expanded(child: _buildChannelList()),
         ],
       ),
     );
@@ -92,19 +89,9 @@ class _LivePageState extends State<LivePage> {
       color: const Color(0xFF2d2d2d),
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
-        leading: Icon(
-          channel['logo'] as IconData,
-          color: Colors.blueAccent,
-          size: 32,
-        ),
-        title: Text(
-          channel['name'] as String,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        subtitle: Text(
-          channel['group'] as String,
-          style: TextStyle(color: Colors.grey[500], fontSize: 12),
-        ),
+        leading: Icon(Icons.live_tv, color: Colors.blueAccent, size: 32),
+        title: Text(channel['name'] as String, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        subtitle: Text(channel['group'] as String, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
         trailing: const Icon(Icons.play_arrow, color: Colors.white),
         onTap: () => _playChannel(channel),
       ),
@@ -115,44 +102,166 @@ class _LivePageState extends State<LivePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LivePlayerPage(channel: channel),
+        builder: (context) => LivePlayerPage(
+          channel: channel,
+          url: channel['url'] as String,
+        ),
       ),
     );
   }
 }
 
-// 直播播放页面
-class LivePlayerPage extends StatelessWidget {
+/// 直播播放页面
+class LivePlayerPage extends StatefulWidget {
   final Map<String, dynamic> channel;
+  final String url;
 
-  const LivePlayerPage({super.key, required this.channel});
+  const LivePlayerPage({
+    super.key,
+    required this.channel,
+    required this.url,
+  });
+
+  @override
+  State<LivePlayerPage> createState() => _LivePlayerPageState();
+}
+
+class _LivePlayerPageState extends State<LivePlayerPage> {
+  late Player _player;
+  late VideoController _controller;
+  bool _isLoading = true;
+  String? _error;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    try {
+      _player = Player();
+      _controller = VideoController(_player);
+
+      _player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      });
+
+      _player.stream.buffering.listen((buffering) {
+        if (mounted) setState(() => _isLoading = buffering);
+      });
+
+      _player.stream.error.listen((error) {
+        if (mounted) setState(() {
+          _error = error;
+          _isLoading = false;
+        });
+      });
+
+      // 如果有真实 URL，尝试播放
+      if (widget.url.isNotEmpty) {
+        await _player.open(Media(widget.url));
+      } else {
+        // 演示模式
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() {
+        _error = '播放失败：$e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(channel['name'] as String),
+        title: Text('${widget.channel['name']} 直播'),
         backgroundColor: const Color(0xFF2d2d2d),
         foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.live_tv, size: 80, color: Colors.grey[600]),
-            const SizedBox(height: 24),
-            Text(
-              '${channel['name']} 直播',
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '（直播播放功能开发中）',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
-            ),
-          ],
-        ),
+      body: _buildPlayer(),
+    );
+  }
+
+  Widget _buildPlayer() {
+    if (widget.url.isEmpty) {
+      return _buildDemoPlayer();
+    }
+
+    if (_error != null) {
+      return _buildErrorDisplay();
+    }
+
+    return Stack(
+      children: [
+        Video(controller: _controller, width: double.infinity, height: double.infinity),
+        if (_isLoading)
+          Container(
+            color: Colors.black.withOpacity(0.7),
+            child: const Center(child: CircularProgressIndicator(color: Colors.blueAccent)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDemoPlayer() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.live_tv, size: 80, color: Colors.grey[600]),
+          const SizedBox(height: 24),
+          Text(
+            '${widget.channel['name']} 直播',
+            style: const TextStyle(color: Colors.white, fontSize: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '（直播播放功能已实现，需要配置真实直播源 URL）',
+            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('已在后台播放（需要配置直播源）'),
+                  backgroundColor: Colors.blueAccent,
+                ),
+              );
+              // 实际使用：_player.play();
+            },
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('开始播放'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorDisplay() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 64),
+          const SizedBox(height: 16),
+          Text(
+            _error ?? '未知错误',
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ],
       ),
     );
   }

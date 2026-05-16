@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class PlayerPage extends StatefulWidget {
-  final Map<String, dynamic> vod;
+  final String url;
+  final String title;
   final int episode;
+  final List<String> episodes;
 
   const PlayerPage({
     super.key,
-    required this.vod,
-    required this.episode,
+    required this.url,
+    required this.title,
+    this.episode = 1,
+    this.episodes = const [],
   });
 
   @override
@@ -15,12 +22,90 @@ class PlayerPage extends StatefulWidget {
 }
 
 class _PlayerPageState extends State<PlayerPage> {
+  late Player _player;
+  late VideoController _controller;
+  
   bool _isPlaying = false;
   bool _showControls = true;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
-  double _volume = 0.5;
+  double _volume = 50.0;
   double _speed = 1.0;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializePlayer();
+    WakelockPlus.enable();
+  }
+
+  Future<void> _initializePlayer() async {
+    try {
+      _player = Player(
+        configuration: const PlayerConfiguration(
+          bufferSize: 10 * 1024 * 1024, // 10MB 缓冲
+        ),
+      );
+
+      _controller = VideoController(
+        _player,
+        configuration: const VideoControllerConfiguration(
+          enableHardwareAcceleration: true,
+        ),
+      );
+
+      // 监听播放状态
+      _player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      });
+
+      _player.stream.position.listen((position) {
+        if (mounted) setState(() => _position = position);
+      });
+
+      _player.stream.duration.listen((duration) {
+        if (mounted) setState(() => _duration = duration);
+      });
+
+      _player.stream.error.listen((error) {
+        if (mounted) setState(() {
+          _error = error;
+          _isLoading = false;
+        });
+      });
+
+      _player.stream.buffering.listen((buffering) {
+        if (mounted) setState(() => _isLoading = buffering);
+      });
+
+      // 打开媒体源
+      await _player.open(
+        Media(
+          widget.url,
+          start: Duration.zero,
+          extras: {
+            'http-user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        ),
+      );
+
+      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) setState(() {
+        _error = '播放器初始化失败：$e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    WakelockPlus.disable();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +113,12 @@ class _PlayerPageState extends State<PlayerPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 视频播放区域（占位）
+          // 视频播放器
           _buildVideoPlayer(),
+          // 加载指示器
+          if (_isLoading) _buildLoadingIndicator(),
+          // 错误显示
+          if (_error != null) _buildErrorDisplay(),
           // 控制层
           _buildControls(),
         ],
@@ -38,46 +127,50 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Widget _buildVideoPlayer() {
-    return Container(
+    return Video(
+      controller: _controller,
       width: double.infinity,
       height: double.infinity,
-      color: Colors.black,
+      controls: NoVideoControls,
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    return Container(
+      color: Colors.black.withOpacity(0.7),
+      child: const Center(
+        child: CircularProgressIndicator(color: Colors.blueAccent),
+      ),
+    );
+  }
+
+  Widget _buildErrorDisplay() {
+    return Container(
+      color: Colors.black.withOpacity(0.8),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 播放图标
-            if (!_isPlaying)
-              GestureDetector(
-                onTap: _togglePlay,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow,
-                    size: 50,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 20),
-            // 影片信息
+            const Icon(Icons.error_outline, color: Colors.red, size: 64),
+            const SizedBox(height: 16),
             Text(
-              '${widget.vod['name']} 第${widget.episode}集',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              _error ?? '未知错误',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            Text(
-              '（播放器开发中 - 使用占位符）',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _error = null;
+                  _isLoading = true;
+                });
+                _initializePlayer();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+              ),
+              child: const Text('重试'),
             ),
           ],
         ),
@@ -96,44 +189,8 @@ class _PlayerPageState extends State<PlayerPage> {
           color: Colors.transparent,
           child: Column(
             children: [
-              // 顶部栏
               _buildTopBar(),
-              // 中间控制区
-              Expanded(
-                child: Row(
-                  children: [
-                    // 左侧：上一集/下一集
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _prevEpisode,
-                        child: Container(
-                          color: Colors.transparent,
-                          child: const Icon(
-                            Icons.skip_previous,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // 右侧
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: _nextEpisode,
-                        child: Container(
-                          color: Colors.transparent,
-                          child: const Icon(
-                            Icons.skip_next,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // 底部控制栏
+              Expanded(child: _buildCenterControls()),
               _buildBottomBar(),
             ],
           ),
@@ -154,10 +211,7 @@ class _PlayerPageState extends State<PlayerPage> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withOpacity(0.8),
-            Colors.transparent,
-          ],
+          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
         ),
       ),
       child: Row(
@@ -168,24 +222,34 @@ class _PlayerPageState extends State<PlayerPage> {
           ),
           Expanded(
             child: Text(
-              '${widget.vod['name']} 第${widget.episode}集',
+              '${widget.title} 第${widget.episode}集',
               style: const TextStyle(color: Colors.white, fontSize: 16),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.cast, color: Colors.white),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('DLNA 投屏功能开发中...'),
-                  backgroundColor: Colors.blueAccent,
-                ),
-              );
-            },
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCenterControls() {
+    return Center(
+      child: GestureDetector(
+        onTap: _togglePlay,
+        child: Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            _isPlaying ? Icons.pause : Icons.play_arrow,
+            size: 50,
+            color: Colors.white,
+          ),
+        ),
       ),
     );
   }
@@ -202,25 +266,24 @@ class _PlayerPageState extends State<PlayerPage> {
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
-          colors: [
-            Colors.black.withOpacity(0.8),
-            Colors.transparent,
-          ],
+          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
         ),
       ),
       child: Column(
         children: [
-          // 进度条
           _buildProgressBar(),
           const SizedBox(height: 12),
-          // 控制按钮
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildControlButton(Icons.play_arrow, _togglePlay),
+              _buildControlButton(Icons.replay_10, () => _seekRelative(-10)),
+              _buildControlButton(
+                _isPlaying ? Icons.pause : Icons.play_arrow,
+                _togglePlay,
+              ),
+              _buildControlButton(Icons.forward_10, () => _seekRelative(10)),
+              _buildControlButton(Icons.speed, _adjustSpeed),
               _buildControlButton(Icons.volume_up, _adjustVolume),
-              _buildControlButton(Icons.fast_forward, _adjustSpeed),
-              _buildControlButton(Icons.settings, _showSettings),
             ],
           ),
         ],
@@ -240,20 +303,12 @@ class _PlayerPageState extends State<PlayerPage> {
           ),
           child: Slider(
             value: _position.inSeconds.toDouble(),
-            max: _duration.inSeconds.toDouble(),
+            max: _duration.inSeconds.toDouble().clamp(1, double.infinity),
             onChanged: (value) {
-              setState(() {
-                _position = Duration(seconds: value.toInt());
-              });
+              setState(() => _position = Duration(seconds: value.toInt()));
             },
             onChangeEnd: (value) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('跳转到 ${_formatTime(_position)}'),
-                  backgroundColor: Colors.blueAccent,
-                  duration: const Duration(seconds: 1),
-                ),
-              );
+              _player.seek(Duration(seconds: value.toInt()));
             },
           ),
         ),
@@ -292,56 +347,26 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _togglePlay() {
-    setState(() => _isPlaying = !_isPlaying);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isPlaying ? '开始播放' : '暂停播放'),
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(milliseconds: 800),
-      ),
-    );
+    if (_isPlaying) {
+      _player.pause();
+    } else {
+      _player.play();
+    }
   }
 
   void _toggleControls() {
     setState(() => _showControls = !_showControls);
   }
 
-  void _prevEpisode() {
-    if (widget.episode > 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('上一集'),
-          backgroundColor: Colors.blueAccent,
-        ),
-      );
-    }
-  }
-
-  void _nextEpisode() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('下一集'),
-        backgroundColor: Colors.blueAccent,
-      ),
-    );
-  }
-
-  void _adjustVolume() {
-    setState(() {
-      _volume = _volume >= 1.0 ? 0.0 : _volume + 0.1;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('音量：${(_volume * 100).toInt()}%'),
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+  void _seekRelative(int seconds) {
+    final newPosition = _position + Duration(seconds: seconds);
+    _player.seek(newPosition);
   }
 
   void _adjustSpeed() {
     setState(() {
       _speed = _speed >= 2.0 ? 0.5 : _speed + 0.5;
+      _player.setRate(_speed);
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -352,48 +377,17 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
-  void _showSettings() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF2d2d2d),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '播放设置',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            _buildSettingItem('弹幕', Icons.dns),
-            _buildSettingItem('字幕', Icons.closed_caption),
-            _buildSettingItem('画质', Icons.hd),
-            _buildSettingItem('音频', Icons.music_note),
-          ],
-        ),
+  void _adjustVolume() {
+    setState(() {
+      _volume = _volume >= 100.0 ? 0.0 : _volume + 10.0;
+      _player.setVolume(_volume);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('音量：${_volume.toInt()}%'),
+        backgroundColor: Colors.blueAccent,
+        duration: const Duration(seconds: 1),
       ),
-    );
-  }
-
-  Widget _buildSettingItem(String title, IconData icon) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.blueAccent),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      trailing: const Text(
-        '开发中',
-        style: TextStyle(color: Colors.grey, fontSize: 12),
-      ),
-      onTap: () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$title功能开发中...'),
-            backgroundColor: Colors.blueAccent,
-          ),
-        );
-      },
     );
   }
 
@@ -405,19 +399,5 @@ class _PlayerPageState extends State<PlayerPage> {
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    // 模拟视频加载
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() {
-          _duration = const Duration(minutes: 30);
-          _position = Duration.zero;
-        });
-      }
-    });
   }
 }
