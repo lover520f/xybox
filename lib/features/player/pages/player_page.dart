@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../danmaku/service/danmaku_service.dart';
+import '../../danmaku/widget/danmaku_overlay.dart';
 
 class PlayerPage extends StatefulWidget {
   final String url;
   final String title;
   final int episode;
-  final List<String> episodes;
 
   const PlayerPage({
     super.key,
     required this.url,
     required this.title,
     this.episode = 1,
-    this.episodes = const [],
   });
 
   @override
@@ -24,326 +24,71 @@ class PlayerPage extends StatefulWidget {
 class _PlayerPageState extends State<PlayerPage> {
   late Player _player;
   late VideoController _controller;
-  
+  bool _isLoading = true;
   bool _isPlaying = false;
   bool _showControls = true;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
-  double _volume = 50.0;
+  bool _showDanmaku = true;
+  
+  final DanmakuService _danmakuService = DanmakuService();
+  final List<DanmakuItem> _visibleDanmakus = [];
+  final TextEditingController _danmakuController = TextEditingController();
+  
+  double _currentPosition = 0;
+  double _duration = 0;
   double _speed = 1.0;
-  bool _isLoading = true;
-  String? _error;
+
+  final List<DanmakuItem> _mockDanmakus = [
+    DanmakuItem(id: '1', content: '前方高能！', startTime: 5, mode: DanmakuMode.scroll),
+    DanmakuItem(id: '2', content: '233333', startTime: 10, mode: DanmakuMode.scroll),
+    DanmakuItem(id: '3', content: '哈哈哈', startTime: 15, mode: DanmakuMode.scroll),
+    DanmakuItem(id: '4', content: '泪目', startTime: 20, mode: DanmakuMode.scroll),
+    DanmakuItem(id: '5', content: '名场面！', startTime: 25, mode: DanmakuMode.scroll),
+  ];
 
   @override
   void initState() {
     super.initState();
     _initializePlayer();
-    WakelockPlus.enable();
   }
 
   Future<void> _initializePlayer() async {
     try {
-      _player = Player(
-        configuration: const PlayerConfiguration(
-          bufferSize: 10 * 1024 * 1024, // 10MB 缓冲
-        ),
-      );
+      await WakelockPlus.enable();
+      
+      _player = Player();
+      _controller = VideoController(_player);
 
-      _controller = VideoController(
-        _player,
-        configuration: const VideoControllerConfiguration(
-          enableHardwareAcceleration: true,
-        ),
-      );
-
-      // 监听播放状态
       _player.stream.playing.listen((playing) {
         if (mounted) setState(() => _isPlaying = playing);
       });
 
-      _player.stream.position.listen((position) {
-        if (mounted) setState(() => _position = position);
-      });
-
       _player.stream.duration.listen((duration) {
-        if (mounted) setState(() => _duration = duration);
+        if (mounted) setState(() => _duration = duration.inSeconds.toDouble());
       });
 
-      _player.stream.error.listen((error) {
-        if (mounted) setState(() {
-          _error = error;
-          _isLoading = false;
-        });
+      _player.stream.position.listen((position) {
+        if (mounted) {
+          setState(() {
+            _currentPosition = position.inSeconds.toDouble();
+            _updateDanmakus();
+          });
+        }
       });
 
-      _player.stream.buffering.listen((buffering) {
-        if (mounted) setState(() => _isLoading = buffering);
-      });
-
-      // 打开媒体源
-      await _player.open(
-        Media(
-          widget.url,
-          start: Duration.zero,
-          extras: {
-            'http-user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        ),
-      );
-
+      await _player.open(Media(widget.url));
+      _danmakuService.loadDanmakus(_mockDanmakus);
+      
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      if (mounted) setState(() {
-        _error = '播放器初始化失败：$e';
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  @override
-  void dispose() {
-    _player.dispose();
-    WakelockPlus.disable();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // 视频播放器
-          _buildVideoPlayer(),
-          // 加载指示器
-          if (_isLoading) _buildLoadingIndicator(),
-          // 错误显示
-          if (_error != null) _buildErrorDisplay(),
-          // 控制层
-          _buildControls(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVideoPlayer() {
-    return Video(
-      controller: _controller,
-      width: double.infinity,
-      height: double.infinity,
-      controls: NoVideoControls,
-    );
-  }
-
-  Widget _buildLoadingIndicator() {
-    return Container(
-      color: Colors.black.withOpacity(0.7),
-      child: const Center(
-        child: CircularProgressIndicator(color: Colors.blueAccent),
-      ),
-    );
-  }
-
-  Widget _buildErrorDisplay() {
-    return Container(
-      color: Colors.black.withOpacity(0.8),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              _error ?? '未知错误',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _error = null;
-                  _isLoading = true;
-                });
-                _initializePlayer();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-              ),
-              child: const Text('重试'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildControls() {
-    return AnimatedOpacity(
-      opacity: _showControls ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
-      child: GestureDetector(
-        onTap: _toggleControls,
-        behavior: HitTestBehavior.translucent,
-        child: Container(
-          color: Colors.transparent,
-          child: Column(
-            children: [
-              _buildTopBar(),
-              Expanded(child: _buildCenterControls()),
-              _buildBottomBar(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopBar() {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 8,
-        left: 16,
-        right: 16,
-        bottom: 8,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Expanded(
-            child: Text(
-              '${widget.title} 第${widget.episode}集',
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCenterControls() {
-    return Center(
-      child: GestureDetector(
-        onTap: _togglePlay,
-        child: Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            _isPlaying ? Icons.pause : Icons.play_arrow,
-            size: 50,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBar() {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
-        top: 8,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-        ),
-      ),
-      child: Column(
-        children: [
-          _buildProgressBar(),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildControlButton(Icons.replay_10, () => _seekRelative(-10)),
-              _buildControlButton(
-                _isPlaying ? Icons.pause : Icons.play_arrow,
-                _togglePlay,
-              ),
-              _buildControlButton(Icons.forward_10, () => _seekRelative(10)),
-              _buildControlButton(Icons.speed, _adjustSpeed),
-              _buildControlButton(Icons.volume_up, _adjustVolume),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressBar() {
-    return Column(
-      children: [
-        SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            activeTrackColor: Colors.blueAccent,
-            inactiveTrackColor: Colors.grey[700],
-          ),
-          child: Slider(
-            value: _position.inSeconds.toDouble(),
-            max: _duration.inSeconds.toDouble().clamp(1, double.infinity),
-            onChanged: (value) {
-              setState(() => _position = Duration(seconds: value.toInt()));
-            },
-            onChangeEnd: (value) {
-              _player.seek(Duration(seconds: value.toInt()));
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatTime(_position),
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
-              ),
-              Text(
-                _formatTime(_duration),
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildControlButton(IconData icon, VoidCallback onPressed) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 24),
-      ),
-    );
+  void _updateDanmakus() {
+    _danmakuService.updatePosition(_currentPosition);
+    final screenWidth = MediaQuery.of(context).size.width;
+    _visibleDanmakus.clear();
+    _visibleDanmakus.addAll(_danmakuService.getVisibleDanmakus(screenWidth));
   }
 
   void _togglePlay() {
@@ -354,50 +99,239 @@ class _PlayerPageState extends State<PlayerPage> {
     }
   }
 
-  void _toggleControls() {
-    setState(() => _showControls = !_showControls);
+  void _seek(double seconds) {
+    _player.seek(Duration(seconds: seconds.toInt()));
+    _danmakuService.seek(seconds);
   }
 
-  void _seekRelative(int seconds) {
-    final newPosition = _position + Duration(seconds: seconds);
-    _player.seek(newPosition);
+  void _sendDanmaku() {
+    if (_danmakuController.text.isEmpty) return;
+    
+    _danmakuService.sendDanmaku(_danmakuController.text);
+    _danmakuController.clear();
+    FocusScope.of(context).unfocus();
+    
+    setState(() {});
   }
 
-  void _adjustSpeed() {
-    setState(() {
-      _speed = _speed >= 2.0 ? 0.5 : _speed + 0.5;
-      _player.setRate(_speed);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('倍速：${_speed}x'),
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(seconds: 1),
+  @override
+  void dispose() {
+    WakelockPlus.disable();
+    _danmakuService.dispose();
+    _player.dispose();
+    _danmakuController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          _buildPlayer(),
+          _buildDanmaku(),
+          _buildOverlay(),
+        ],
       ),
     );
   }
 
-  void _adjustVolume() {
-    setState(() {
-      _volume = _volume >= 100.0 ? 0.0 : _volume + 10.0;
-      _player.setVolume(_volume);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('音量：${_volume.toInt()}%'),
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  String _formatTime(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  Widget _buildPlayer() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
     }
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Video(controller: _controller, width: double.infinity, height: double.infinity);
+  }
+
+  Widget _buildDanmaku() {
+    if (!_showDanmaku) return const SizedBox.shrink();
+    return DanmakuOverlay(
+      danmakus: _visibleDanmakus,
+      isVisible: _showDanmaku,
+      currentPosition: _currentPosition,
+    );
+  }
+
+  Widget _buildOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _showControls = !_showControls);
+        },
+        child: AnimatedOpacity(
+          opacity: _showControls ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 300),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.7),
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.7),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildTopBar(),
+                const Spacer(),
+                _buildControls(),
+                _buildDanmakuInput(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            Expanded(
+              child: Text(
+                '${widget.title} 第${widget.episode}集',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              icon: Icon(_showDanmaku ? Icons.subtitles : Icons.subtitles_off, color: Colors.white),
+              onPressed: () => setState(() => _showDanmaku = !_showDanmaku),
+            ),
+            PopupMenuButton<double>(
+              icon: const Icon(Icons.speed, color: Colors.white),
+              onSelected: (speed) {
+                setState(() => _speed = speed);
+                _player.setRate(speed);
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(value: 0.5, child: Text('0.5x')),
+                const PopupMenuItem(value: 1.0, child: Text('1.0x')),
+                const PopupMenuItem(value: 1.25, child: Text('1.25x')),
+                const PopupMenuItem(value: 1.5, child: Text('1.5x')),
+                const PopupMenuItem(value: 2.0, child: Text('2.0x')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControls() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          _buildProgressBar(),
+          const SizedBox(height: 16),
+          _buildControlButtons(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressBar() {
+    return Center(
+      child: StreamBuilder(
+        stream: _player.stream.position,
+        builder: (context, snapshot) {
+          final position = snapshot.data?.inSeconds.toDouble() ?? 0;
+          return SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape: SliderComponentShape.noOverlay,
+              activeTrackColor: Colors.blueAccent,
+              inactiveTrackColor: Colors.grey.withOpacity(0.3),
+              thumbColor: Colors.blueAccent,
+            ),
+            child: Slider(
+              value: _duration > 0 ? position.clamp(0, _duration) : 0,
+              min: 0,
+              max: _duration > 0 ? _duration : 1,
+              onChanged: (value) {
+                _seek(value);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildControlButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.replay_10, color: Colors.white, size: 32),
+          onPressed: () => _seek(_currentPosition - 10),
+        ),
+        IconButton(
+          icon: Icon(
+            _isPlaying ? Icons.pause_circle : Icons.play_circle,
+            color: Colors.white,
+            size: 48,
+          ),
+          onPressed: _togglePlay,
+        ),
+        IconButton(
+          icon: const Icon(Icons.forward_10, color: Colors.white, size: 32),
+          onPressed: () => _seek(_currentPosition + 10),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDanmakuInput() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _danmakuController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: '发个弹幕...',
+                hintStyle: TextStyle(color: Colors.grey[500]),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                filled: true,
+                fillColor: Colors.black.withOpacity(0.5),
+              ),
+              onSubmitted: (_) => _sendDanmaku(),
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton(
+            onPressed: _sendDanmaku,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: const Text('发送'),
+          ),
+        ],
+      ),
+    );
   }
 }
