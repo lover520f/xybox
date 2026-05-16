@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'config_source_page.dart';
+import '../../logs/pages/logs_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -199,16 +200,25 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.delete_outline, color: Colors.red[400]),
-              title: const Text('清除历史记录', style: TextStyle(color: Colors.white)),
-              subtitle: Text('删除所有观看历史', style: TextStyle(color: Colors.grey[500])),
-              onTap: () => _showClearConfirm('历史记录'),
+              leading: Icon(Icons.history, color: Colors.blueAccent),
+              title: const Text('观看历史', style: TextStyle(color: Colors.white)),
+              subtitle: Text('查看观看记录', style: TextStyle(color: Colors.grey[500])),
+              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+              onTap: () {
+                // TODO: 跳转到历史页面
+              },
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline, color: Colors.red[400]),
-              title: const Text('清除缓存', style: TextStyle(color: Colors.white)),
-              subtitle: Text('删除所有缓存数据', style: TextStyle(color: Colors.grey[500])),
-              onTap: () => _showClearConfirm('缓存数据'),
+              leading: Icon(Icons.bug_report, color: Colors.red[400]),
+              title: const Text('错误日志', style: TextStyle(color: Colors.white)),
+              subtitle: Text('查看应用错误日志', style: TextStyle(color: Colors.grey[500])),
+              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LogsPage()),
+                );
+              },
             ),
           ],
         ),
@@ -239,16 +249,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('版本', '1.0.5'),
+            _buildInfoRow('版本', '1.0.9'),
             _buildInfoRow('构建日期', '2026-05-16'),
             const Divider(color: Colors.grey, height: 24),
             const Text(
               'XYBox 是 FongMi/TV 的 Flutter 复刻版本',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '支持配置源：饭太硬、肥猫、巧技等',
               style: TextStyle(color: Colors.grey, fontSize: 14),
             ),
           ],
@@ -265,31 +270,6 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
           Text(value, style: const TextStyle(color: Colors.white)),
-        ],
-      ),
-    );
-  }
-
-  void _showClearConfirm(String type) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2d2d2d),
-        title: Text('清除$type', style: const TextStyle(color: Colors.white)),
-        content: Text('确定要清除所有$type吗？此操作不可恢复。', style: const TextStyle(color: Colors.grey)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSnackbar('已清除$type');
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('确定'),
-          ),
         ],
       ),
     );

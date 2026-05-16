@@ -8,27 +8,46 @@ class ConfigParser {
   factory ConfigParser() => _instance;
   ConfigParser._internal();
 
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json, text/plain, */*',
+    },
+  ));
 
   /// 加载配置文件
   Future<ConfigData?> loadConfig(String url) async {
     try {
       LoggerUtil.i('加载配置：$url');
       
-      String configUrl = url;
-      if (!configUrl.endsWith('.json') && !configUrl.endsWith('/')) {
-        configUrl = '$url/box.json';
-      } else if (configUrl.endsWith('/')) {
-        configUrl = '${url}box.json';
+      String configUrl = url.trim();
+      // 移除末尾斜杠
+      if (configUrl.endsWith('/')) {
+        configUrl = configUrl.substring(0, configUrl.length - 1);
+      }
+      // 追加 /box.json
+      if (!configUrl.endsWith('.json')) {
+        configUrl = '$configUrl/box.json';
       }
 
-      final response = await _dio.get(configUrl, timeout: const Duration(seconds: 10));
+      LoggerUtil.d('实际请求 URL: $configUrl');
+
+      final response = await _dio.get(configUrl);
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.data);
+        LoggerUtil.i('配置加载成功：${data['videoName'] ?? "未知"}, 站点数：${(data['sites'] as List?)?.length ?? 0}');
         return ConfigData.fromJson(data);
+      } else {
+        LoggerUtil.e('配置加载失败：HTTP ${response.statusCode}');
       }
+    } on DioException catch (e) {
+      LoggerUtil.e('Dio 错误：${e.type}, ${e.message}');
+      LoggerUtil.e('错误详情：${e.error}');
     } catch (e) {
-      LoggerUtil.e('加载配置失败：$e');
+      LoggerUtil.e('配置加载失败：$e');
     }
     return null;
   }

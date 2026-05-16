@@ -36,6 +36,7 @@ class _PlayerPageState extends State<PlayerPage> {
   double _currentPosition = 0;
   double _duration = 0;
   double _speed = 1.0;
+  String? _error;
 
   final List<DanmakuItem> _mockDanmakus = [
     DanmakuItem(id: '1', content: '前方高能！', startTime: 5, mode: DanmakuMode.scroll),
@@ -48,10 +49,19 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    _checkAndInitializePlayer();
   }
 
-  Future<void> _initializePlayer() async {
+  Future<void> _checkAndInitializePlayer() async {
+    // 检查 URL 是否有效
+    if (widget.url.isEmpty || !widget.url.startsWith('http')) {
+      setState(() {
+        _error = '无效的视频地址';
+        _isLoading = false;
+      });
+      return;
+    }
+
     try {
       await WakelockPlus.enable();
       
@@ -75,12 +85,26 @@ class _PlayerPageState extends State<PlayerPage> {
         }
       });
 
+      _player.stream.error.listen((err) {
+        if (mounted) {
+          setState(() {
+            _error = '播放错误：${err.toString()}';
+            _isLoading = false;
+          });
+        }
+      });
+
       await _player.open(Media(widget.url));
       _danmakuService.loadDanmakus(_mockDanmakus);
       
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _error = '播放器初始化失败：$e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -100,6 +124,8 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _seek(double seconds) {
+    if (seconds < 0) seconds = 0;
+    if (seconds > _duration) seconds = _duration;
     _player.seek(Duration(seconds: seconds.toInt()));
     _danmakuService.seek(seconds);
   }
@@ -140,6 +166,10 @@ class _PlayerPageState extends State<PlayerPage> {
   Widget _buildPlayer() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
+    }
+
+    if (_error != null) {
+      return _buildErrorDisplay();
     }
 
     return Video(controller: _controller, width: double.infinity, height: double.infinity);
@@ -186,6 +216,33 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorDisplay() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 64),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              _error ?? '未知错误',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('返回'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+          ),
+        ],
       ),
     );
   }
@@ -264,9 +321,7 @@ class _PlayerPageState extends State<PlayerPage> {
               value: _duration > 0 ? position.clamp(0, _duration) : 0,
               min: 0,
               max: _duration > 0 ? _duration : 1,
-              onChanged: (value) {
-                _seek(value);
-              },
+              onChanged: (value) => _seek(value),
             ),
           );
         },
